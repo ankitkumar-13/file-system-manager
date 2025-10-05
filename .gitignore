@@ -11,3 +11,10 @@ __pycache__/
 
 # Python Virtual Environment
 .venv/
+
+# Temporary Files Made
+.fsmdata
+*.bin
+
+# SQLite Database
+*.sqlite3
