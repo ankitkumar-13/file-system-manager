@@ -1,4 +1,16 @@
 
+class InvalidPermissionNotationError(Exception):
+    """
+    Exception raised when a permission abbreviation that is not in the allowed list is asked for.
+    """
+    def __init__(self, notation):
+        self.notation = notation
+    def __str__(self):
+        return (f"\nPermission Notation {self.notation} doesn't exists."
+                f"\nCheck the notation again for the required permission.\n")
+    def __repr__(self):
+        return f"\nInvalidPermissionNotationError({self.notation})\n"
+
 class DuplicateDiskNameError(Exception):
     """
     Exception raised when a disk name already exists.
