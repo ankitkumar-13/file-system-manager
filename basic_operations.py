@@ -4,6 +4,51 @@ import re
 import getpass
 from object_and_file_manipulation import *
 from custom_exceptions import *
+from datetime import datetime
+
+All_Perms = {
+    'r': ('Read a File',100),
+    'w': ('Write a File',110),
+    'a': ('Modify a File',120),
+    'd': ('Delete a File', 130)
+}
+
+class Permission:
+    """
+        :parameter abbrev: Notation of the permission.
+    """
+    def __init__(self, abbrev):
+        if abbrev in list(All_Perms.keys()):
+            self.name = All_Perms[abbrev][0]
+            self.code = All_Perms[abbrev][1]
+        else:
+            raise InvalidPermissionNotationError(abbrev)
+    def __eq__(self, other):
+        return self.code == other.code
+    def __str__(self):
+        return self.name+"("+str(self.code)+")"
+    def __repr__(self):
+        return self.name+"("+str(self.code)+")"
+
+
+class File:
+    """
+        Defines the files that can be saved or used in File System Manager
+        :parameter name: Name of the disk
+        :parameter size_in_bytes: Size of the disk in bytes
+    """
+    def __init__(self, name, size_in_bytes, permissions=None):
+        if permissions is None:
+            permissions = [Permission('r'), Permission('w'), Permission('a'), Permission('d')]
+        self.name = name
+        self.size_in_bytes = size_in_bytes
+        self.owner = getpass.getuser()
+        self.permissions = permissions
+        self.last_modified = datetime.now()
+    def __str__(self):
+        return str(self.name)+"("+str(self.size_in_bytes)+")"
+    def __repr__(self):
+        return str(self.name)+"("+str(self.size_in_bytes)+")"
 
 
 class Disk:
@@ -21,6 +66,9 @@ class Disk:
         self.FAT = [-1] * self.num_of_cluster
         self.num_of_empty_cluster = self.num_of_cluster
         self.num_of_filled_cluster = 0
+        self.files = dict()
+    def add_file(self, file_name, file_size_in_bytes):
+        self.files[file_name] = File(file_name, file_size_in_bytes)
     def format(self):
         for i in range(self.num_of_cluster):
             self.FAT[i] = -1
@@ -87,7 +135,10 @@ def check_disk_stat(disk_name):
     :return: None
     """
     all_disks = load_object(".fsmdata")
-    all_disks[disk_name].disk_stat()
+    if disk_name in all_disks:
+        all_disks[disk_name].disk_stat()
+    else:
+        print("Disk Not Found!")
     print()
 
 
@@ -117,7 +168,7 @@ def display_all_disks():
     print("Available Disks: ")
     if file_exists(".fsmdata"):
         all_disks = load_object(".fsmdata")
-        print(all_disks, len(all_disks))
+        print(all_disks, '->',len(all_disks))
     else:
         print("No Disk Data Available")
 
@@ -130,7 +181,7 @@ while True:
           "\nPress 4 to display all available disks."
           "\nPress 5 to exit"
           "\nEnter your choice : ").strip()
-    print()
+    print("\n")
     if choice == "1":
         try:
             create_disk()
