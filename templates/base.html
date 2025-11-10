@@ -20,13 +20,150 @@
       },
     };
   </script> -->
+  
+  <style>
+    /* Prevent scroll jump on form submission and button clicks */
+    html {
+      scroll-behavior: smooth;
+    }
+    
+    /* Prevent focus scroll on form elements */
+    form:focus-within {
+      scroll-margin: 0;
+    }
+    
+    /* Prevent anchor links from causing scroll jump */
+    a[href^="#"] {
+      scroll-margin-top: 0;
+    }
+  </style>
 </head>
 
-<body data-theme="light">
+<body data-theme="light" style="scroll-behavior: smooth;">
 
 {% block body %}{% endblock %}
 
+<!-- Toast Container -->
+<div id="toast-container" class="toast toast-top toast-end z-50"></div>
 
+<!-- Messages Data (hidden) -->
+{% if messages %}
+<div id="messages-data" style="display: none;">
+  {% for message in messages %}
+  <div data-message="{{ message|escape }}" data-tags="{{ message.tags }}"></div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Prevent Scroll Jump Script -->
+<script>
+  // Save scroll position before form submission
+  (function() {
+    // Save scroll position before form submission
+    const forms = document.querySelectorAll('form');
+    forms.forEach(function(form) {
+      form.addEventListener('submit', function() {
+        sessionStorage.setItem('scrollPosition', window.pageYOffset || document.documentElement.scrollTop);
+      });
+    });
+
+    // Restore scroll position after page loads
+    function restoreScroll() {
+      const savedScrollPosition = sessionStorage.getItem('scrollPosition');
+      if (savedScrollPosition) {
+        // Use requestAnimationFrame to ensure DOM is ready
+        requestAnimationFrame(function() {
+          window.scrollTo(0, parseInt(savedScrollPosition));
+          sessionStorage.removeItem('scrollPosition');
+        });
+      }
+    }
+
+    // Try to restore immediately if DOM is ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', restoreScroll);
+    } else {
+      // DOM is already ready
+      setTimeout(restoreScroll, 0);
+    }
+
+    // Also restore after window loads (for slower connections)
+    window.addEventListener('load', function() {
+      setTimeout(restoreScroll, 100);
+    });
+  })();
+</script>
+
+<!-- Messages to Toasts Script -->
+<script>
+  // Convert Django messages to toasts
+  document.addEventListener('DOMContentLoaded', function() {
+    const messagesContainer = document.getElementById('messages-data');
+    if (!messagesContainer) return;
+    
+    const messageElements = messagesContainer.querySelectorAll('[data-message]');
+    const toastContainer = document.getElementById('toast-container');
+    
+    messageElements.forEach(function(msgEl) {
+      const messageText = msgEl.getAttribute('data-message');
+      const messageType = msgEl.getAttribute('data-tags');
+      
+      // Map Django message tags to DaisyUI alert types
+      let alertType = 'info';
+      if (messageType === 'error' || messageType === 'danger') {
+        alertType = 'error';
+      } else if (messageType === 'success') {
+        alertType = 'success';
+      } else if (messageType === 'warning') {
+        alertType = 'warning';
+      } else {
+        alertType = 'info';
+      }
+
+      // Get appropriate icon SVG
+      let iconSvg = '';
+      if (alertType === 'success') {
+        iconSvg = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />';
+      } else if (alertType === 'error') {
+        iconSvg = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />';
+      } else if (alertType === 'warning') {
+        iconSvg = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />';
+      } else {
+        iconSvg = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />';
+      }
+
+      // Create toast element
+      const toast = document.createElement('div');
+      toast.className = 'alert alert-' + alertType + ' shadow-lg mb-2';
+      toast.innerHTML = 
+        '<div>' +
+          '<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">' +
+            iconSvg +
+          '</svg>' +
+          '<span>' + messageText + '</span>' +
+        '</div>' +
+        '<button class="btn btn-sm btn-ghost" onclick="this.parentElement.remove()">✕</button>';
+      
+      toastContainer.appendChild(toast);
+      
+      // Auto-remove toast after 5 seconds
+      setTimeout(function() {
+        if (toast.parentElement) {
+          toast.style.opacity = '0';
+          toast.style.transition = 'opacity 0.3s';
+          setTimeout(function() {
+            if (toast.parentElement) {
+              toast.remove();
+            }
+          }, 300);
+        }
+      }, 5000);
+    });
+    
+    // Remove the hidden messages container
+    messagesContainer.remove();
+  });
+</script>
 
 </body>
 </html>
