@@ -1,0 +1,180 @@
+{% extends 'base.html' %}
+
+{% block title %}File System Manager - Home{% endblock %}
+
+{% block body %}
+<div class="min-h-screen bg-base-200 py-8">
+  <div class="container mx-auto px-4">
+    <!-- Header -->
+    <div class="text-center mb-8">
+      <h1 class="text-4xl font-bold text-primary mb-2">File System Manager</h1>
+      <p class="text-lg text-base-content/70">Manage your virtual disks efficiently</p>
+    </div>
+
+    <!-- Messages are now shown as toasts (see base.html) -->
+
+    <!-- Create Disk Card -->
+    <div class="card bg-base-100 shadow-xl mb-8">
+      <div class="card-body">
+        <h2 class="card-title text-2xl mb-4">Create New Disk</h2>
+        <form method="POST" action="{% url 'core:create_disk' %}" id="create-disk-form">
+          {% csrf_token %}
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text font-semibold">Disk Name</span>
+              </label>
+              <input type="text" name="disk_name" placeholder="Enter disk name" 
+                     class="input input-bordered w-full" required>
+            </div>
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text font-semibold">Size</span>
+              </label>
+              <input type="number" name="disk_size" id="disk_size_input" placeholder="Enter size" 
+                     class="input input-bordered w-full" min="1" required>
+            </div>
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text font-semibold">Unit</span>
+              </label>
+              <select name="disk_unit" class="select select-bordered w-full">
+                <option value="KB">KB</option>
+                <option value="MB" selected>MB</option>
+                <option value="GB">GB</option>
+              </select>
+            </div>
+          </div>
+          <div class="card-actions justify-end mt-4">
+            <button type="submit" class="btn btn-primary">Create Disk</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Actions Bar -->
+    <div class="flex justify-between items-center mb-6">
+      <h2 class="text-2xl font-bold">Available Disks ({{ disks_count }})</h2>
+      <form method="POST" action="{% url 'core:refresh_disks' %}" class="inline">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-outline btn-sm">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          Refresh Disks
+        </button>
+      </form>
+    </div>
+
+    <!-- Disks Grid -->
+    {% if disks %}
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {% for disk in disks %}
+          <div class="card bg-base-100 shadow-xl hover:shadow-2xl transition-shadow">
+            <div class="card-body">
+              <h3 class="card-title text-xl">{{ disk.name }}</h3>
+              <div class="space-y-2 text-sm">
+                <div class="flex justify-between">
+                  <span class="text-base-content/70">Size:</span>
+                  <span class="font-semibold">{{ disk.size_mb }} MB</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-base-content/70">Clusters:</span>
+                  <span class="font-semibold">{{ disk.num_of_cluster }}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-base-content/70">Empty Clusters:</span>
+                  <span class="font-semibold text-success">{{ disk.num_of_empty_cluster }}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-base-content/70">Used Clusters:</span>
+                  <span class="font-semibold text-warning">{{ disk.num_of_filled_cluster }}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-base-content/70">Files:</span>
+                  <span class="font-semibold">{{ disk.files_count }}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-base-content/70">Owner:</span>
+                  <span class="font-semibold">{{ disk.owner }}</span>
+                </div>
+              </div>
+              <div class="card-actions justify-end mt-4">
+                <a href="{% url 'core:disk_stats' disk.name %}" class="btn btn-primary btn-sm">
+                  View Details
+                </a>
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="card bg-base-100 shadow-xl">
+        <div class="card-body text-center py-12">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto text-base-content/30 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          <p class="text-lg text-base-content/70">No disks available. Create your first disk above!</p>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Form Validation Script -->
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('create-disk-form');
+    const diskSizeInput = document.getElementById('disk_size_input');
+    const unitSelect = document.querySelector('select[name="disk_unit"]');
+    
+    if (form && diskSizeInput) {
+      form.addEventListener('submit', function(e) {
+        const size = parseInt(diskSizeInput.value);
+        const unit = unitSelect ? unitSelect.value : 'MB';
+        
+        if (isNaN(size) || size <= 0) {
+          e.preventDefault();
+          
+          // Create a warning toast
+          const toastContainer = document.getElementById('toast-container');
+          if (toastContainer) {
+            const toast = document.createElement('div');
+            toast.className = 'alert alert-warning shadow-lg mb-2';
+            toast.innerHTML = 
+              '<div>' +
+                '<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">' +
+                  '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />' +
+                '</svg>' +
+                '<span>Disk size must be greater than 0 ' + unit + '! Please enter a valid size.</span>' +
+              '</div>' +
+              '<button class="btn btn-sm btn-ghost" onclick="this.parentElement.remove()">✕</button>';
+            
+            toastContainer.appendChild(toast);
+            
+            // Auto-remove toast after 5 seconds
+            setTimeout(function() {
+              if (toast.parentElement) {
+                toast.style.opacity = '0';
+                toast.style.transition = 'opacity 0.3s';
+                setTimeout(function() {
+                  if (toast.parentElement) {
+                    toast.remove();
+                  }
+                }, 300);
+              }
+            }, 5000);
+          }
+          
+          // Focus on the size input
+          diskSizeInput.focus();
+          diskSizeInput.select();
+          
+          return false;
+        }
+      });
+    }
+  });
+</script>
+{% endblock %}
+

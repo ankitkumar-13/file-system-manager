@@ -174,34 +174,35 @@ def display_all_disks():
 
 
 # Start Main Control :-
-while True:
-    choice = input("\nPress 1 to create a new disk."
-          "\nPress 2 to check disk stats."
-          "\nPress 3 to refresh the disks."
-          "\nPress 4 to display all available disks."
-          "\nPress 5 to exit"
-          "\nEnter your choice : ").strip()
-    print("\n")
-    if choice == "1":
-        try:
-            create_disk()
-        except DuplicateDiskNameError as e:
-            print(e)
-        except InvalidDiskSizeError as e:
-            print(e)
-        except Exception as e:
-            print("Unknown Error :", e)
-    elif choice == "2":
-        disk_chk = input("Enter the name of the disk you want to create : ")
-        check_disk_stat(disk_chk)
-    elif choice == "3":
-        if refresh_disks():
-            print("Updated the list of available disks")
+if __name__ == "__main__":
+    while True:
+        choice = input("\nPress 1 to create a new disk."
+              "\nPress 2 to check disk stats."
+              "\nPress 3 to refresh the disks."
+              "\nPress 4 to display all available disks."
+              "\nPress 5 to exit"
+              "\nEnter your choice : ").strip()
+        print("\n")
+        if choice == "1":
+            try:
+                create_disk()
+            except DuplicateDiskNameError as e:
+                print(e)
+            except InvalidDiskSizeError as e:
+                print(e)
+            except Exception as e:
+                print("Unknown Error :", e)
+        elif choice == "2":
+            disk_chk = input("Enter the name of the disk you want to create : ")
+            check_disk_stat(disk_chk)
+        elif choice == "3":
+            if refresh_disks():
+                print("Updated the list of available disks")
+            else:
+                print("No changes made")
+        elif choice == "4":
+            display_all_disks()
+        elif choice == "5":
+            exit(0)
         else:
-            print("No changes made")
-    elif choice == "4":
-        display_all_disks()
-    elif choice == "5":
-        exit(0)
-    else:
-        print("Invalid choice. Recheck your input : ")
+            print("Invalid choice. Recheck your input : ")
