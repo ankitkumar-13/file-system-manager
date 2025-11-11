@@ -11,8 +11,6 @@
       <p class="text-lg text-base-content/70">Manage your virtual disks efficiently</p>
     </div>
 
-    <!-- Messages are now shown as toasts (see base.html) -->
-
     <!-- Create Disk Card -->
     <div class="card bg-base-100 shadow-xl mb-8">
       <div class="card-body">
@@ -110,18 +108,14 @@
       </div>
     {% else %}
       <div class="card bg-base-100 shadow-xl">
-        <div class="card-body text-center py-12">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto text-base-content/30 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-          <p class="text-lg text-base-content/70">No disks available. Create your first disk above!</p>
+        <div class="card-body">
+          {% include 'core/includes/empty_state.html' with message="No disks available. Create your first disk above!" icon="disk" %}
         </div>
       </div>
     {% endif %}
   </div>
 </div>
 
-<!-- Form Validation Script -->
 <script>
   document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('create-disk-form');
@@ -135,8 +129,6 @@
         
         if (isNaN(size) || size <= 0) {
           e.preventDefault();
-          
-          // Create a warning toast
           const toastContainer = document.getElementById('toast-container');
           if (toastContainer) {
             const toast = document.createElement('div');
@@ -149,27 +141,19 @@
                 '<span>Disk size must be greater than 0 ' + unit + '! Please enter a valid size.</span>' +
               '</div>' +
               '<button class="btn btn-sm btn-ghost" onclick="this.parentElement.remove()">✕</button>';
-            
             toastContainer.appendChild(toast);
-            
-            // Auto-remove toast after 5 seconds
             setTimeout(function() {
               if (toast.parentElement) {
                 toast.style.opacity = '0';
                 toast.style.transition = 'opacity 0.3s';
                 setTimeout(function() {
-                  if (toast.parentElement) {
-                    toast.remove();
-                  }
+                  if (toast.parentElement) { toast.remove(); }
                 }, 300);
               }
             }, 5000);
           }
-          
-          // Focus on the size input
           diskSizeInput.focus();
           diskSizeInput.select();
-          
           return false;
         }
       });
@@ -177,4 +161,3 @@
   });
 </script>
 {% endblock %}
-

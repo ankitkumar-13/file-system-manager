@@ -15,11 +15,13 @@ from basic_operations import (
     display_all_disks,
     Disk
 )
-from object_and_file_manipulation import load_object, file_exists
+from object_and_file_manipulation import load_object, file_exists, update_disk
 from custom_exceptions import (
     DuplicateDiskNameError,
     InvalidDiskSizeError,
-    InvalidPermissionNotationError
+    InvalidPermissionNotationError,
+    InsufficientMemoryError,
+    FileNotFoundError
 )
 
 
@@ -123,6 +125,31 @@ def disk_stats_view(request, disk_name):
             all_disks = load_object(".fsmdata")
             if disk_name in all_disks:
                 disk = all_disks[disk_name]
+                # Get file information with allocation details
+                files_info = []
+                if hasattr(disk, 'files') and disk.files:
+                    for file_name, file_obj in disk.files.items():
+                        # Format file size
+                        size_bytes = file_obj.size_in_bytes
+                        if size_bytes < 1024:
+                            size_display = f"{size_bytes} B"
+                        elif size_bytes < 1024 * 1024:
+                            size_display = f"{round(size_bytes / 1024, 2)} KB"
+                        elif size_bytes < 1024 * 1024 * 1024:
+                            size_display = f"{round(size_bytes / (1024 * 1024), 2)} MB"
+                        else:
+                            size_display = f"{round(size_bytes / (1024 * 1024 * 1024), 2)} GB"
+                        
+                        file_info = {
+                            'name': file_name,
+                            'size': file_obj.size_in_bytes,
+                            'size_display': size_display,
+                            'allocation_type': getattr(file_obj, 'allocation_type', 'N/A'),
+                            'start_cluster': getattr(file_obj, 'start_cluster', -1),
+                            'num_clusters': len(getattr(file_obj, 'allocated_clusters', []))
+                        }
+                        files_info.append(file_info)
+                
                 disk_data = {
                     'name': disk.name,
                     'size_in_bytes': disk.size_in_bytes,
@@ -134,7 +161,8 @@ def disk_stats_view(request, disk_name):
                     'num_of_filled_cluster': disk.num_of_filled_cluster,
                     'owner': disk.owner,
                     'files': list(disk.files.keys()) if hasattr(disk, 'files') else [],
-                    'files_count': len(disk.files) if hasattr(disk, 'files') else 0
+                    'files_count': len(disk.files) if hasattr(disk, 'files') else 0,
+                    'files_info': files_info
                 }
         except Exception as e:
             messages.error(request, f'Error loading disk: {str(e)}')
@@ -156,4 +184,190 @@ def refresh_disks_view(request):
     except Exception as e:
         messages.error(request, f'Error refreshing disks: {str(e)}')
     
+    return redirect('core:home')
+
+
+def create_file_view(request, disk_name):
+    """View for creating/adding a file to a disk"""
+    all_disks = {}
+    disk = None
+    
+    if file_exists(".fsmdata"):
+        try:
+            all_disks = load_object(".fsmdata")
+            if disk_name in all_disks:
+                disk = all_disks[disk_name]
+        except Exception as e:
+            messages.error(request, f'Error loading disk: {str(e)}')
+            return redirect('core:home')
+    
+    if not disk:
+        messages.error(request, f'Disk "{disk_name}" not found!')
+        return redirect('core:home')
+    
+    if request.method == 'POST':
+        uploaded_file = request.FILES.get('uploaded_file')
+        file_name = request.POST.get('file_name', '').strip()
+        file_size = request.POST.get('file_size', '').strip()
+        file_unit = request.POST.get('file_unit', 'KB')
+        allocation_type = request.POST.get('allocation_type', 'contiguous')
+        
+        # Check if file is uploaded or manual size is provided
+        if uploaded_file:
+            # Use uploaded file
+            file_name = file_name or uploaded_file.name
+            file_bytes = uploaded_file.size
+            file_data = uploaded_file.read()
+        else:
+            # Manual size entry
+            if not file_name:
+                messages.error(request, 'File name is required!')
+                return redirect('core:create_file', disk_name=disk_name)
+            
+            if not file_size or not file_size.replace('.', '').isdigit():
+                messages.error(request, 'Either upload a file or provide a valid file size!')
+                return redirect('core:create_file', disk_name=disk_name)
+            
+            try:
+                file_size_float = float(file_size)
+                if file_size_float <= 0:
+                    messages.error(request, f'File size must be greater than 0 {file_unit}!')
+                    return redirect('core:create_file', disk_name=disk_name)
+                
+                # Convert to bytes
+                if file_unit == "B":
+                    file_bytes = int(file_size_float)
+                elif file_unit == "KB":
+                    file_bytes = int(file_size_float * 1024)
+                elif file_unit == "MB":
+                    file_bytes = int(file_size_float * 1024 * 1024)
+                elif file_unit == "GB":
+                    file_bytes = int(file_size_float * 1024 * 1024 * 1024)
+                else:
+                    messages.error(request, 'Invalid file unit!')
+                    return redirect('core:create_file', disk_name=disk_name)
+                
+                file_data = None  # No file data for manual creation
+            except ValueError:
+                messages.error(request, 'Invalid file size format!')
+                return redirect('core:create_file', disk_name=disk_name)
+        
+        if file_name in disk.files:
+            messages.error(request, f'File "{file_name}" already exists in this disk!')
+            return redirect('core:create_file', disk_name=disk_name)
+        
+        try:
+            # Allocate file based on allocation type
+            if allocation_type == 'contiguous':
+                start_cluster = disk.allocate_contiguous(file_name, file_bytes)
+                messages.success(request, f'File "{file_name}" created successfully using contiguous allocation (starting at cluster {start_cluster})!')
+            elif allocation_type == 'non-contiguous':
+                start_cluster = disk.allocate_non_contiguous(file_name, file_bytes)
+                messages.success(request, f'File "{file_name}" created successfully using non-contiguous allocation (starting at cluster {start_cluster})!')
+            else:
+                messages.error(request, 'Invalid allocation type!')
+                return redirect('core:create_file', disk_name=disk_name)
+            
+            # Write file data if uploaded
+            if file_data is not None:
+                disk.write_file_data(file_name, file_data)
+                messages.success(request, f'File data written to disk successfully!')
+            
+            # Update disk in storage
+            all_disks[disk_name] = disk
+            update_disk(all_disks)
+            
+            return redirect('core:disk_stats', disk_name=disk_name)
+            
+        except InsufficientMemoryError as e:
+            messages.error(request, str(e))
+        except Exception as e:
+            messages.error(request, f'Error creating file: {str(e)}')
+        
+        return redirect('core:create_file', disk_name=disk_name)
+    
+    # GET request - show form
+    disk_data = {
+        'name': disk.name,
+        'size_in_bytes': disk.size_in_bytes,
+        'size_mb': round(disk.size_in_bytes / (1024 * 1024), 2),
+        'cluster_size': disk.cluster_size,
+        'num_of_cluster': disk.num_of_cluster,
+        'num_of_empty_cluster': disk.num_of_empty_cluster,
+        'num_of_filled_cluster': disk.num_of_filled_cluster,
+    }
+    
+    return render(request, 'core/create_file.html', {
+        'disk': disk_data
+    })
+
+
+def delete_file_view(request, disk_name, file_name):
+    """View for deleting a file from a disk"""
+    all_disks = {}
+    
+    if file_exists(".fsmdata"):
+        try:
+            all_disks = load_object(".fsmdata")
+            if disk_name not in all_disks:
+                messages.error(request, f'Disk "{disk_name}" not found!')
+                return redirect('core:home')
+            
+            disk = all_disks[disk_name]
+            
+            try:
+                disk.deallocate_file(file_name)
+                all_disks[disk_name] = disk
+                update_disk(all_disks)
+                messages.success(request, f'File "{file_name}" deleted successfully!')
+            except FileNotFoundError as e:
+                messages.error(request, str(e))
+            except Exception as e:
+                messages.error(request, f'Error deleting file: {str(e)}')
+                
+        except Exception as e:
+            messages.error(request, f'Error loading disk: {str(e)}')
+    
+    return redirect('core:disk_stats', disk_name=disk_name)
+
+
+def download_file_view(request, disk_name, file_name):
+    """View for downloading/extracting a file from a disk"""
+    from django.http import HttpResponse
+    
+    all_disks = {}
+    
+    if file_exists(".fsmdata"):
+        try:
+            all_disks = load_object(".fsmdata")
+            if disk_name not in all_disks:
+                messages.error(request, f'Disk "{disk_name}" not found!')
+                return redirect('core:home')
+            
+            disk = all_disks[disk_name]
+            
+            try:
+                # Read file data from disk
+                file_data = disk.read_file_data(file_name)
+                file_obj = disk.files[file_name]
+                
+                # Create HTTP response with file data
+                response = HttpResponse(file_data, content_type='application/octet-stream')
+                response['Content-Disposition'] = f'attachment; filename="{file_name}"'
+                response['Content-Length'] = len(file_data)
+                
+                return response
+                
+            except FileNotFoundError as e:
+                messages.error(request, str(e))
+                return redirect('core:disk_stats', disk_name=disk_name)
+            except Exception as e:
+                messages.error(request, f'Error reading file: {str(e)}')
+                return redirect('core:disk_stats', disk_name=disk_name)
+                
+        except Exception as e:
+            messages.error(request, f'Error loading disk: {str(e)}')
+            return redirect('core:home')
+    
+    messages.error(request, 'Disk not found!')
     return redirect('core:home')

@@ -33,3 +33,27 @@ class InvalidDiskSizeError(Exception):
         return f"\nDisk size {self.disk_size} is in invalid format.\n"
     def __repr__(self):
         return f"\nInvalidDiskSizeError({self.disk_size})\n"
+
+class InsufficientMemoryError(Exception):
+    """
+    Exception raised when there is not enough memory to allocate.
+    """
+    def __init__(self, required_clusters, available_clusters):
+        self.required_clusters = required_clusters
+        self.available_clusters = available_clusters
+    def __str__(self):
+        return (f"\nInsufficient memory: Required {self.required_clusters} clusters, "
+                f"but only {self.available_clusters} clusters available.\n")
+    def __repr__(self):
+        return f"\nInsufficientMemoryError({self.required_clusters}, {self.available_clusters})\n"
+
+class FileNotFoundError(Exception):
+    """
+    Exception raised when a file is not found in the disk.
+    """
+    def __init__(self, file_name):
+        self.file_name = file_name
+    def __str__(self):
+        return f"\nFile '{self.file_name}' not found in the disk.\n"
+    def __repr__(self):
+        return f"\nFileNotFoundError({self.file_name})\n"
