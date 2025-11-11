@@ -3,9 +3,14 @@
 {% block title %}Create File - {{ disk.name }}{% endblock %}
 {% block container_class %}max-w-2xl{% endblock %}
 
-{% block back_url %}core:disk_stats{% endblock %}
-{% block back_url_link %}{% url 'core:disk_stats' disk.name %}{% endblock %}
-{% block back_text %}Back to Disk Stats{% endblock %}
+{% block back_button %}
+<a href="{% url 'core:disk_stats' disk.name %}" class="btn btn-ghost btn-sm mb-4">
+  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+  </svg>
+  Back to Disk Stats
+</a>
+{% endblock %}
 {% block page_title %}Create File{% endblock %}
 {% block page_subtitle %}<p class="text-lg text-base-content/70">Add a new file to {{ disk.name }}</p>{% endblock %}
 
