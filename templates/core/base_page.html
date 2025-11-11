@@ -6,15 +6,8 @@
     {% block page_header %}
     <div class="mb-6">
       {% block back_button %}
-      {% block back_url %}{% endblock %}
-      {% if back_url %}
-        <a href="{% block back_url_link %}{% url back_url %}{% endblock %}" class="btn btn-ghost btn-sm mb-4">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-          </svg>
-          {% block back_text %}Back{% endblock %}
-        </a>
-      {% endif %}
+      {% block back_url_link %}{% endblock %}
+      {% block back_text %}Back{% endblock %}
       {% endblock %}
       <h1 class="text-4xl font-bold text-primary mb-2">{% block page_title %}Page Title{% endblock %}</h1>
       {% block page_subtitle %}{% endblock %}
