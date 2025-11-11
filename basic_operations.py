@@ -45,6 +45,10 @@ class File:
         self.owner = getpass.getuser()
         self.permissions = permissions
         self.last_modified = datetime.now()
+        # Memory allocation tracking
+        self.allocation_type = None  # 'contiguous' or 'non-contiguous'
+        self.allocated_clusters = []  # List of cluster indices allocated to this file
+        self.start_cluster = -1  # Starting cluster for contiguous allocation
     def __str__(self):
         return str(self.name)+"("+str(self.size_in_bytes)+")"
     def __repr__(self):
@@ -63,15 +67,21 @@ class Disk:
         self.owner = getpass.getuser() #User that runs the script while creation
         self.cluster_size = cluster_size
         self.num_of_cluster = self.size_in_bytes // self.cluster_size
-        self.FAT = [-1] * self.num_of_cluster
+        self.FAT = [-1] * self.num_of_cluster  # -1 means free, -2 means end of file, >=0 means next cluster
         self.num_of_empty_cluster = self.num_of_cluster
         self.num_of_filled_cluster = 0
         self.files = dict()
+    
     def add_file(self, file_name, file_size_in_bytes):
         self.files[file_name] = File(file_name, file_size_in_bytes)
+    
     def format(self):
         for i in range(self.num_of_cluster):
             self.FAT[i] = -1
+        self.num_of_empty_cluster = self.num_of_cluster
+        self.num_of_filled_cluster = 0
+        self.files = dict()
+    
     def disk_stat(self):
         print("Disk Name :",self.name)
         print("Disk Size :", self.size_in_bytes, "Bytes")
@@ -79,10 +89,278 @@ class Disk:
         print("No. of Cluster :", self.num_of_cluster)
         print("No. of Empty Cluster :", self.num_of_empty_cluster)
         print("No. of Filled Cluster :", self.num_of_filled_cluster)
+    
     def __str__(self):
         return self.name
+    
     def __repr__(self):
         return f"Disk({self.name}, {self.size_in_bytes} bytes)"
+    
+    # ========== Memory Allocation Methods ==========
+    
+    def _calculate_required_clusters(self, file_size_in_bytes):
+        """Calculate the number of clusters needed for a file."""
+        return (file_size_in_bytes + self.cluster_size - 1) // self.cluster_size
+    
+    def _is_cluster_free(self, cluster_index):
+        """Check if a cluster is free."""
+        return self.FAT[cluster_index] == -1
+    
+    def _find_free_clusters(self):
+        """Find all free clusters in the disk."""
+        return [i for i in range(self.num_of_cluster) if self._is_cluster_free(i)]
+    
+    def _find_contiguous_free_block(self, start_index, required_clusters):
+        """Find a contiguous block of free clusters starting from start_index."""
+        if start_index >= self.num_of_cluster:
+            return None
+        
+        count = 0
+        end_index = start_index
+        for i in range(start_index, self.num_of_cluster):
+            if self._is_cluster_free(i):
+                count += 1
+                if count == required_clusters:
+                    end_index = i
+                    return (start_index, end_index)
+            else:
+                count = 0
+                start_index = i + 1
+        
+        return None
+    
+    # ========== Contiguous Allocation Methods ==========
+    
+    def allocate_contiguous(self, file_name, file_size_in_bytes):
+        """
+        Allocate memory using First Fit contiguous allocation strategy.
+        :param file_name: Name of the file
+        :param file_size_in_bytes: Size of the file in bytes
+        :return: Starting cluster index if successful, None if failed
+        """
+        required_clusters = self._calculate_required_clusters(file_size_in_bytes)
+        
+        if required_clusters > self.num_of_empty_cluster:
+            raise InsufficientMemoryError(required_clusters, self.num_of_empty_cluster)
+        
+        # Search for first fit
+        for start in range(self.num_of_cluster):
+            block = self._find_contiguous_free_block(start, required_clusters)
+            if block:
+                start_cluster, end_cluster = block
+                # Allocate the clusters
+                for i in range(start_cluster, end_cluster + 1):
+                    if i == end_cluster:
+                        self.FAT[i] = -2  # End of file marker
+                    else:
+                        self.FAT[i] = i + 1  # Point to next cluster
+                
+                # Update file information
+                if file_name not in self.files:
+                    self.files[file_name] = File(file_name, file_size_in_bytes)
+                
+                file = self.files[file_name]
+                file.allocation_type = 'contiguous'
+                file.start_cluster = start_cluster
+                file.allocated_clusters = list(range(start_cluster, end_cluster + 1))
+                
+                # Update disk statistics
+                self.num_of_empty_cluster -= required_clusters
+                self.num_of_filled_cluster += required_clusters
+                
+                return start_cluster
+        
+        raise InsufficientMemoryError(required_clusters, self.num_of_empty_cluster)
+    
+    # ========== Non-Contiguous Allocation Methods ==========
+    
+    def allocate_non_contiguous(self, file_name, file_size_in_bytes):
+        """
+        Allocate memory using non-contiguous (linked list/FAT) allocation strategy.
+        :param file_name: Name of the file
+        :param file_size_in_bytes: Size of the file in bytes
+        :return: Starting cluster index if successful, None if failed
+        """
+        required_clusters = self._calculate_required_clusters(file_size_in_bytes)
+        
+        if required_clusters > self.num_of_empty_cluster:
+            raise InsufficientMemoryError(required_clusters, self.num_of_empty_cluster)
+        
+        # Find free clusters
+        free_clusters = self._find_free_clusters()
+        
+        if len(free_clusters) < required_clusters:
+            raise InsufficientMemoryError(required_clusters, len(free_clusters))
+        
+        # Allocate clusters (take first available clusters)
+        allocated_clusters = free_clusters[:required_clusters]
+        start_cluster = allocated_clusters[0]
+        
+        # Link clusters using FAT
+        for i in range(len(allocated_clusters)):
+            if i == len(allocated_clusters) - 1:
+                self.FAT[allocated_clusters[i]] = -2  # End of file marker
+            else:
+                self.FAT[allocated_clusters[i]] = allocated_clusters[i + 1]  # Point to next cluster
+        
+        # Update file information
+        if file_name not in self.files:
+            self.files[file_name] = File(file_name, file_size_in_bytes)
+        
+        file = self.files[file_name]
+        file.allocation_type = 'non-contiguous'
+        file.start_cluster = start_cluster
+        file.allocated_clusters = allocated_clusters
+        
+        # Update disk statistics
+        self.num_of_empty_cluster -= required_clusters
+        self.num_of_filled_cluster += required_clusters
+        
+        return start_cluster
+    
+    # ========== Deallocation Methods ==========
+    
+    def deallocate_file(self, file_name):
+        """
+        Deallocate memory for a file.
+        :param file_name: Name of the file to deallocate
+        :return: True if successful, False if file not found
+        """
+        if file_name not in self.files:
+            raise FileNotFoundError(file_name)
+        
+        file = self.files[file_name]
+        allocated_clusters = file.allocated_clusters
+        
+        # Free all allocated clusters
+        for cluster in allocated_clusters:
+            self.FAT[cluster] = -1  # Mark as free
+        
+        # Update disk statistics
+        num_clusters_freed = len(allocated_clusters)
+        self.num_of_empty_cluster += num_clusters_freed
+        self.num_of_filled_cluster -= num_clusters_freed
+        
+        # Remove file from files dictionary
+        del self.files[file_name]
+        
+        return True
+    
+    def get_file_allocation_info(self, file_name):
+        """
+        Get allocation information for a file.
+        :param file_name: Name of the file
+        :return: Dictionary with allocation information
+        """
+        if file_name not in self.files:
+            raise FileNotFoundError(file_name)
+        
+        file = self.files[file_name]
+        return {
+            'file_name': file_name,
+            'allocation_type': file.allocation_type,
+            'start_cluster': file.start_cluster,
+            'allocated_clusters': file.allocated_clusters,
+            'num_clusters': len(file.allocated_clusters),
+            'file_size': file.size_in_bytes
+        }
+    
+    # ========== File I/O Methods ==========
+    
+    def _get_cluster_chain(self, start_cluster):
+        """
+        Get the chain of clusters for a file starting from start_cluster.
+        :param start_cluster: Starting cluster index
+        :return: List of cluster indices in order
+        """
+        cluster_chain = []
+        current = start_cluster
+        
+        while current != -1 and current != -2:
+            cluster_chain.append(current)
+            if self.FAT[current] == -2:
+                break
+            current = self.FAT[current]
+        
+        return cluster_chain
+    
+    def write_file_data(self, file_name, file_data):
+        """
+        Write file data to the disk's binary file.
+        :param file_name: Name of the file
+        :param file_data: Bytes data to write
+        :return: True if successful
+        """
+        if file_name not in self.files:
+            raise FileNotFoundError(file_name)
+        
+        file = self.files[file_name]
+        
+        # Ensure file size matches
+        if len(file_data) > file.size_in_bytes:
+            raise Exception(f"File data size ({len(file_data)} bytes) exceeds allocated size ({file.size_in_bytes} bytes)")
+        
+        # Get cluster chain
+        if file.allocation_type == 'contiguous':
+            cluster_chain = file.allocated_clusters
+        else:
+            cluster_chain = self._get_cluster_chain(file.start_cluster)
+        
+        # Write data to disk binary file
+        disk_file_path = self.name + '.bin'
+        with open(disk_file_path, 'r+b') as f:
+            data_written = 0
+            for cluster_idx in cluster_chain:
+                cluster_offset = cluster_idx * self.cluster_size
+                f.seek(cluster_offset)
+                
+                # Calculate how much data to write in this cluster
+                remaining_data = len(file_data) - data_written
+                data_to_write = min(remaining_data, self.cluster_size)
+                
+                if data_to_write > 0:
+                    f.write(file_data[data_written:data_written + data_to_write])
+                    data_written += data_to_write
+                
+                # Pad remaining cluster space with zeros if needed
+                if data_to_write < self.cluster_size and data_written < len(file_data):
+                    padding = self.cluster_size - data_to_write
+                    f.write(b'\x00' * padding)
+        
+        return True
+    
+    def read_file_data(self, file_name):
+        """
+        Read file data from the disk's binary file.
+        :param file_name: Name of the file
+        :return: Bytes data of the file
+        """
+        if file_name not in self.files:
+            raise FileNotFoundError(file_name)
+        
+        file = self.files[file_name]
+        
+        # Get cluster chain
+        if file.allocation_type == 'contiguous':
+            cluster_chain = file.allocated_clusters
+        else:
+            cluster_chain = self._get_cluster_chain(file.start_cluster)
+        
+        # Read data from disk binary file
+        disk_file_path = self.name + '.bin'
+        file_data = bytearray()
+        
+        with open(disk_file_path, 'rb') as f:
+            for cluster_idx in cluster_chain:
+                cluster_offset = cluster_idx * self.cluster_size
+                f.seek(cluster_offset)
+                
+                # Read cluster data
+                cluster_data = f.read(self.cluster_size)
+                file_data.extend(cluster_data)
+        
+        # Trim to actual file size
+        return bytes(file_data[:file.size_in_bytes])
 
 
 

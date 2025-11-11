@@ -1,0 +1,116 @@
+{% extends 'core/base_page.html' %}
+
+{% block title %}Create File - {{ disk.name }}{% endblock %}
+{% block container_class %}max-w-2xl{% endblock %}
+
+{% block back_url %}core:disk_stats{% endblock %}
+{% block back_url_link %}{% url 'core:disk_stats' disk.name %}{% endblock %}
+{% block back_text %}Back to Disk Stats{% endblock %}
+{% block page_title %}Create File{% endblock %}
+{% block page_subtitle %}<p class="text-lg text-base-content/70">Add a new file to {{ disk.name }}</p>{% endblock %}
+
+{% block content %}
+<!-- Disk Info Card -->
+<div class="card bg-base-100 shadow-xl mb-6">
+  <div class="card-body">
+    <h2 class="card-title text-xl mb-2">Disk Information</h2>
+    <div class="grid grid-cols-2 gap-4 text-sm">
+      <div>
+        <span class="font-semibold">Available Clusters:</span> {{ disk.num_of_empty_cluster }}
+      </div>
+      <div>
+        <span class="font-semibold">Cluster Size:</span> {{ disk.cluster_size }} B
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Create File Form -->
+<div class="card bg-base-100 shadow-xl">
+  <div class="card-body">
+    <h2 class="card-title text-2xl mb-4">File Details</h2>
+    <form method="POST" action="{% url 'core:create_file' disk.name %}" enctype="multipart/form-data">
+      {% csrf_token %}
+      
+      <!-- File Upload -->
+      <div class="form-control mb-4">
+        <label class="label">
+          <span class="label-text font-semibold">Upload File (Optional)</span>
+        </label>
+        <input type="file" name="uploaded_file" class="file-input file-input-bordered w-full" id="uploaded_file">
+        <label class="label">
+          <span class="label-text-alt text-base-content/60">If you upload a file, it will be stored in the disk. Otherwise, you can manually specify size below.</span>
+        </label>
+      </div>
+
+      <div class="divider">OR</div>
+
+      <!-- File Name -->
+      <div class="form-control mb-4">
+        <label class="label">
+          <span class="label-text font-semibold">File Name</span>
+        </label>
+        <input type="text" name="file_name" placeholder="Enter file name (or leave empty to use uploaded file name)" class="input input-bordered w-full" id="file_name">
+        <label class="label">
+          <span class="label-text-alt text-base-content/60">Required if not uploading a file</span>
+        </label>
+      </div>
+
+      <!-- File Size (Manual) -->
+      <div class="form-control mb-4">
+        <label class="label">
+          <span class="label-text font-semibold">File Size (Manual Entry)</span>
+        </label>
+        <div class="flex gap-2">
+          <input type="number" name="file_size" placeholder="0" step="0.01" min="0.01" class="input input-bordered flex-1" id="file_size">
+          <select name="file_unit" class="select select-bordered">
+            <option value="B">Bytes</option>
+            <option value="KB" selected>KB</option>
+            <option value="MB">MB</option>
+            <option value="GB">GB</option>
+          </select>
+        </div>
+        <label class="label">
+          <span class="label-text-alt text-base-content/60">Required if not uploading a file</span>
+        </label>
+      </div>
+
+      <!-- Allocation Type -->
+      <div class="form-control mb-6">
+        <label class="label">
+          <span class="label-text font-semibold">Memory Allocation Type</span>
+        </label>
+        <div class="flex gap-4">
+          <label class="label cursor-pointer">
+            <input type="radio" name="allocation_type" value="contiguous" class="radio radio-primary" checked>
+            <span class="label-text ml-2">Contiguous (First Fit)</span>
+          </label>
+          <label class="label cursor-pointer">
+            <input type="radio" name="allocation_type" value="non-contiguous" class="radio radio-primary">
+            <span class="label-text ml-2">Non-Contiguous (FAT)</span>
+          </label>
+        </div>
+        <div class="text-xs text-base-content/60 mt-2">
+          <p><strong>Contiguous:</strong> Allocates a continuous block of clusters (First Fit algorithm)</p>
+          <p><strong>Non-Contiguous:</strong> Allocates clusters using File Allocation Table (linked list)</p>
+        </div>
+      </div>
+
+      <!-- Submit Button -->
+      <div class="form-control">
+        <button type="submit" class="btn btn-primary">Create File</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  document.getElementById('uploaded_file').addEventListener('change', function(e) {
+    const fileInput = e.target;
+    const fileNameInput = document.getElementById('file_name');
+    if (fileInput.files && fileInput.files.length > 0 && !fileNameInput.value) {
+      fileNameInput.value = fileInput.files[0].name;
+    }
+  });
+</script>
+{% endblock %}
