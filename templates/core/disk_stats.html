@@ -41,10 +41,31 @@
   </div>
 </div>
 
-<!-- Cluster Information Card -->
-<div class="card bg-base-100 shadow-xl mb-6">
-  <div class="card-body">
-    <h2 class="card-title text-2xl mb-4">Cluster Information</h2>
+    <!-- Actions Card -->
+    <div class="card bg-base-100 shadow-xl mb-6">
+      <div class="card-body">
+        <h2 class="card-title text-2xl mb-4">Disk Actions</h2>
+        <div class="flex gap-4">
+          <form method="POST" action="{% url 'core:defragment_disk' disk.name %}" class="inline">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-warning" onclick="return confirm('This will reorganize the entire disk layout by moving all files to optimize space. Continue?')">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Defragment Disk
+            </button>
+          </form>
+        </div>
+        <p class="text-sm text-base-content/60 mt-2">
+          Disk defragmentation reorganizes all files on the disk to create contiguous blocks and consolidate free space for optimal performance.
+        </p>
+      </div>
+    </div>
+
+    <!-- Cluster Information Card -->
+    <div class="card bg-base-100 shadow-xl mb-6">
+      <div class="card-body">
+        <h2 class="card-title text-2xl mb-4">Cluster Information</h2>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
       <div class="stat bg-base-200 rounded-lg p-4">
         <div class="stat-title">Cluster Size</div>

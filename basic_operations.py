@@ -361,6 +361,93 @@ class Disk:
         
         # Trim to actual file size
         return bytes(file_data[:file.size_in_bytes])
+    
+    # ========== Defragmentation Methods ==========
+    
+    def defragment(self):
+        """
+        Defragment the entire disk by reorganizing all files to create contiguous blocks and consolidate free space.
+        This reorganizes the entire disk layout for optimal space utilization.
+        :return: Dictionary with defragmentation statistics
+        """
+        defrag_stats = {
+            'files_moved': 0,
+            'files_skipped': 0,
+            'total_files': len(self.files),
+            'clusters_reorganized': 0
+        }
+        
+        if not self.files:
+            return defrag_stats
+        
+        disk_file_path = self.name + '.bin'
+        
+        # Step 1: Read all file data and store temporarily
+        file_data_map = {}
+        file_info_map = {}
+        
+        for file_name, file_obj in self.files.items():
+            try:
+                file_data = self.read_file_data(file_name)
+                file_data_map[file_name] = file_data
+                file_info_map[file_name] = {
+                    'size': file_obj.size_in_bytes,
+                    'old_clusters': file_obj.allocated_clusters.copy(),
+                    'allocation_type': file_obj.allocation_type
+                }
+            except Exception as e:
+                defrag_stats['files_skipped'] += 1
+                continue
+        
+        # Step 2: Free all clusters (mark as available)
+        total_clusters_freed = 0
+        for file_name, file_info in file_info_map.items():
+            old_clusters = file_info['old_clusters']
+            for cluster in old_clusters:
+                self.FAT[cluster] = -1
+            total_clusters_freed += len(old_clusters)
+        
+        # Update statistics
+        self.num_of_empty_cluster = self.num_of_cluster
+        self.num_of_filled_cluster = 0
+        
+        # Step 3: Clear files dictionary
+        self.files = {}
+        
+        # Step 4: Reallocate all files contiguously from the beginning
+        # Sort files by size (largest first) for better space utilization
+        sorted_files = sorted(file_data_map.items(), key=lambda x: file_info_map[x[0]]['size'], reverse=True)
+        
+        for file_name, file_data in sorted_files:
+            try:
+                file_size = file_info_map[file_name]['size']
+                old_clusters = file_info_map[file_name]['old_clusters']
+                
+                # Try to allocate contiguously
+                try:
+                    new_start_cluster = self.allocate_contiguous(file_name, file_size)
+                    
+                    # Write file data to new location
+                    self.write_file_data(file_name, file_data)
+                    
+                    new_clusters = self.files[file_name].allocated_clusters
+                    defrag_stats['files_moved'] += 1
+                    
+                    # Count clusters that changed position
+                    if set(old_clusters) != set(new_clusters):
+                        defrag_stats['clusters_reorganized'] += len(new_clusters)
+                    
+                except InsufficientMemoryError:
+                    # If can't allocate contiguously, use non-contiguous
+                    new_start_cluster = self.allocate_non_contiguous(file_name, file_size)
+                    self.write_file_data(file_name, file_data)
+                    defrag_stats['files_skipped'] += 1
+                    
+            except Exception as e:
+                defrag_stats['files_skipped'] += 1
+                continue
+        
+        return defrag_stats
 
 
 
