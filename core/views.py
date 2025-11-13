@@ -371,3 +371,43 @@ def download_file_view(request, disk_name, file_name):
     
     messages.error(request, 'Disk not found!')
     return redirect('core:home')
+
+
+def defragment_disk_view(request, disk_name):
+    """View for defragmenting a disk"""
+    all_disks = {}
+    
+    if file_exists(".fsmdata"):
+        try:
+            all_disks = load_object(".fsmdata")
+            if disk_name not in all_disks:
+                messages.error(request, f'Disk "{disk_name}" not found!')
+                return redirect('core:home')
+            
+            disk = all_disks[disk_name]
+            
+            try:
+                # Perform defragmentation
+                stats = disk.defragment()
+                
+                # Update disk in storage
+                all_disks[disk_name] = disk
+                update_disk(all_disks)
+                
+                if stats['files_moved'] > 0:
+                    messages.success(request, 
+                        f'Disk defragmentation completed! {stats["files_moved"]} file(s) reorganized, '
+                        f'{stats["clusters_reorganized"]} cluster(s) moved, '
+                        f'{stats["files_skipped"]} file(s) skipped.')
+                else:
+                    messages.info(request, 
+                        f'No defragmentation needed. Disk is already optimized or no files to defragment.')
+                    
+            except Exception as e:
+                messages.error(request, f'Error during defragmentation: {str(e)}')
+                
+        except Exception as e:
+            messages.error(request, f'Error loading disk: {str(e)}')
+            return redirect('core:home')
+    
+    return redirect('core:disk_stats', disk_name=disk_name)
